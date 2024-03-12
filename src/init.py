@@ -6,11 +6,8 @@ if __name__ == '__main__':
         # Create a new LyricDB object
         lyric_db = LyricDB.LyricDB()
 
-        # Connect to the MongoDB server
-        lyric_db.connect('localhost', 'lyrics_db')
-
-        # Initialize the Song_Details collection
-        lyric_db.init_song_details_collection()
+        #init
+        lyric_db.init('localhost','LyricDB')
 
         # Print the database connection details
         print(lyric_db)

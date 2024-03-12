@@ -30,7 +30,7 @@ class LyricDB():
         """
         Calls initialization methods from LyricDBinit to set up the database.
         """
-        self.connect(db_uri, db_name)
+        self.connect(db_uri,db_name)
         init_track_details_collection(self.db)
         init_lyrics_collection(self.db)
         init_albums_collection(self.db)
