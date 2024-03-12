@@ -1,21 +1,23 @@
 from pymongo import MongoClient, ASCENDING
 from datetime import datetime
+from LyricDBinit import *
 
 
-class LyricDB:
+class LyricDB():
 
-    def __init__(self, db_uri=None, db_name=None):
+    def __init__(self):
         """
         Initialize the database connection details.
 
         :param db_uri: MongoDB connection URI string (optional).
         :param db_name: Name of the database to use (optional).
         """
-        self.db_uri = db_uri
-        self.db_name = db_name
+
+        self.connected = False
         self.client = None
         self.db = None
-        self.collection_name = []
+        self.db_uri = None
+        self.db_name = None
 
     def __str__(self):
         # Return a string representation of the database connection details and all the collections.
@@ -23,6 +25,17 @@ class LyricDB:
         if self.client:
             collection_names = self.db.list_collection_names()
             return f"Database: {self.db_name} at {self.db_uri}\nCollections: {collection_names}"
+
+    def init(self, db_uri, db_name):
+        """
+        Calls initialization methods from LyricDBinit to set up the database.
+        """
+        self.connect(db_uri, db_name)
+        init_track_details_collection(self.db)
+        init_lyrics_collection(self.db)
+        init_albums_collection(self.db)
+        init_update_track_collection(self.db)
+
 
     def connect(self, db_uri=None, db_name=None):
         """
@@ -32,83 +45,57 @@ class LyricDB:
         :param db_name: Name of the database to use (optional if provided during class initialization).
         """
         # Allow overriding or setting db_uri and db_name during connection
-        if db_uri:
+        if db_uri and db_name:
             self.db_uri = db_uri
-        if db_name:
             self.db_name = db_name
+            self.client = MongoClient(self.db_uri)
+            self.db = self.client[self.db_name]
+            print(f"Connected to database: {self.db_name} at {self.db_uri}")
+            self.connected = True
 
         if not self.db_uri or not self.db_name:
             raise ValueError(
                 "Database URI and name must be provided either during initialization or when calling connect.")
 
-        self.client = MongoClient(self.db_uri)
-        self.db = self.client[self.db_name]
-        print(f"Connected to database: {self.db_name} at {self.db_uri}")
-
-    def init_song_details_collection(self):
+    def put_update_from_json(self, json):
         """
-        Initialize the Song_Details collection with an index on 'track_id'.
+        Insert or update a document in the Update_Track collection.
+        :param json:
+
         """
-        if self.collection_name not in self.db.list_collection_names():
-            collection = self.db[self.collection_name]
 
-            # # Optionally define a sample document structure and insert it. Uncomment the next lines if needed.
-            # sample_document = {
-            #     "track_id": "example_track_id",
-            #     "added_on": datetime.utcnow(),
-            #     "album_id": "example_album_id",
-            #     "album_name": "Example Album Name",
-            #     "artist_name": "Example Artist",
-            #     "release_date": "2023-01-01",
-            #     "track_name": "Example Track Name",
-            #     "duration_ms": 240000,
-            #     "explicit": False,
-            #     "danceability": 0.5,
-            #     "energy": 0.8,
-            #     "genres": ["pop", "dance"]
-            # }
-            # collection.insert_one(sample_document)
+        """
+        JSON ITEMS: added_on album_id album_cover album_name artist_name release_date track_id track_name track_link duration_ms explicit danceability energy genres lyrics
+        """
+        for item in json:
+            collection = self.db['updateTrack']
+            document = {
+                "added_on": item['added_on'],
+                "album_id": item['album_id'],
+                "album_cover": item['album_cover'],
+                "album_name": item['album_name'],
+                "artist_name": item['artist_name'],
+                "release_date": item['release_date'],
+                "track_id": item['track_id'],
+                "track_name": item['track_name'],
+                "track_link": item['track_link'],
+                "duration_ms": item['duration_ms'],
+                "explicit": item['explicit'],
+                "danceability": item['danceability'],
+                "energy": item['energy'],
+                "genres": item['genres'],
+                "lyrics": item['lyrics']
+            }
+            try:
+                collection.insert_one(document)
+            except Exception as e:
+                print(f"An error occurred: {e}")
 
-            collection.create_index([("track_id", ASCENDING)], unique=True)
 
-            print(f"Collection '{self.collection_name}' initialized with an index on 'track_id'.")
-        else:
-            print(f"Collection '{self.collection_name}' already exists.")
-
-    def init_song_lyrics_collection(self):
-        collection_name = 'songLyrics'
-        if collection_name not in self.db.list_collection_names():
-            collection = self.db[collection_name]
-            # Creating an index on 'track_id' to optimize lookups
-            collection.create_index([("track_id", ASCENDING)], unique=True)
-            print(f"Collection '{collection_name}' initialized with an index on 'track_id'.")
-        else:
-            print(f"Collection '{collection_name}' already exists.")
-
-    def init_lyricIndex_collection(self):
-        collection_name = 'lyricIndex'
-        if collection_name not in self.db.list_collection_names():
-            collection = self.db[collection_name]
-            # Creating an index on lyric to optimize lookups
-            collection.create_index([("lyric", ASCENDING)], unique=True)
-            print(f"Collection '{collection_name}' initialized with an index on 'lyric'.")
-        else:
-            print(f"Collection '{collection_name}' already exists.")
-
-    def init_album_details_collection(self):
-        # album_id, album_name, artist_name, release_date, genres
-        collection_name = 'albumDetails'
-        if collection_name not in self.db.list_collection_names():
-            collection = self.db[collection_name]
-            # Creating an index on album_id to optimize lookups
-            collection.create_index([("album_id", ASCENDING)], unique=True)
-            print(f"Collection '{collection_name}' initialized with an index on 'album_id'.")
-        else:
-            print(f"Collection '{collection_name}' already exists.")
-
-    # track_id, album_id, added_on, album_name, artist_name, release_date, track_name, duration_ms, explicit, danceability, energy, genres
-    def insert_song_details(self, track_id, album_id, album_name, artist_name, release_date, track_name, duration_ms,
+    def insert_song_details(self, track_id, album_id, album_name, artist_name, release_date, track_name,
+                            duration_ms,
                             explicit, danceability, energy, genres):
+
         """
         Insert a new document into the Song_Details collection.
 
